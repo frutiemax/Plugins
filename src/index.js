@@ -1,4 +1,3 @@
-
 ownedTiles = []
 ownedMapCoords = []
 var GameCommandType =
@@ -31,7 +30,9 @@ var GameCommandType =
 	LowerLand					: 25,
 	EditLandSmooth				: 26,
 	RaiseWater					: 27,
-	LowerWater					: 28
+	LowerWater					: 28,
+	Count						: 29,
+	Test						: 30
 	
 };
 
@@ -100,7 +101,7 @@ function openLandPermissionWindow(){
 		height : 28,
 		name: "land_editor_toggle",
 		onClick: onLandButtonToggleClick,
-		text : "LandButton"
+		image : 100
 	};
 	
 	landEditor = ui.openWindow({
