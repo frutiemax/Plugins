@@ -3,25 +3,13 @@
 
 import GameCommandType from './defines'
 
+ownedMapCoordsInit = false;
 ownedMapCoords = []
-cursorSize = 2;
+cursorSize = 4;
 cursorMapCoords = []
+lastCursorPosition = {}
 
 test = GameCommandType.SetRideAppearance;
-
-function isTileOwned(coords){
-	found = false;
-	index = 0;
-	
-	for(index = 0; index < ownedMapCoords.length; index++){
-		if(ownedMapCoords[index].x == coords.x && 
-			ownedMapCoords[index].y == coords.y){
-			found = true;
-			break;
-		}
-	}
-	return {found, index};
-}
 
 function onQuery(Args){
 	if(Args.type != GameCommandType.TogglePause || Args.type != GameCommandType.LoadOrQuit){
@@ -31,9 +19,10 @@ function onQuery(Args){
 			coords = Args.result.position;
 			coords = {x: Math.floor(coords.x/32), y:Math.floor(coords.y/32)};
 			coords = {x: coords.x * 32, y: coords.y * 32};
-			tileOwned = isTileOwned(coords);
+
+			tileOwned = ownedMapCoords.indexOf(coords);
 			
-			if(tileOwned.found == false)
+			if(tileOwned == -1)
 			{
 				result.error = 1;
 				result.errorTitle = "Construction is not allowed outside of holy land";
@@ -45,19 +34,38 @@ function onQuery(Args){
 
 setToOwnedLand = true;
 function onLandButtonToggleClick(){
-	if(setToOwnedLand == false)
-	{
+	if(setToOwnedLand == false){
 		setToOwnedLand = true;
 	}
-	else
-	{
+	else{
 		setToOwnedLand = false;
 	}
-	console.log(setToOwnedLand);
 }
 
 function onLandPermissionWindowClose(){
-	ui.tool.cancel();
+}
+
+function onIncrementCursorSize(){
+	cursorSize++;
+
+	//update the text
+	updateCursorSizeText();
+}
+
+function onDecrementCursorSize(){
+	cursorSize--;
+	if(cursorSize == 0)
+		cursorSize = 1;
+
+	//update the text
+	updateCursorSizeText();
+}
+
+function updateCursorSizeText(){
+	window = ui.getWindow("land_permissions")
+
+	spinner = window.findWidget("cursor_size_spinner");
+	spinner.text = cursorSize + "x" + cursorSize;
 }
 
 function openLandPermissionWindow(){
@@ -80,7 +88,9 @@ function openLandPermissionWindow(){
 		width : 80,
 		height : 12,
 		name: "cursor_size_spinner",
-		text : "1x1"
+		text : "1x1",
+		onDecrement: onDecrementCursorSize,
+        onIncrement: onIncrementCursorSize
 	}
 	
 	landEditor = ui.openWindow({
@@ -108,9 +118,7 @@ function openLandPermissionWindow(){
 	
 	//show tool
 	ui.activateTool(landPermissionToolDesc);
-	
-	//show owned tiles
-	ui.tileSelection.tiles = ownedMapCoords;
+	updateCursorSizeText();
 }
 
 function addTiles(args)
@@ -119,46 +127,74 @@ function addTiles(args)
 	toAdd = []
 	for(index = 0; index < cursorMapCoords.length; index++)
 	{
+		coord = cursorMapCoords[index];
 		found = false;
-		coord2 = cursorMapCoords[index];
-		j = 0;
+
 		for(j = 0; j < ownedMapCoords.length; j++)
 		{
-			coord1 = ownedMapCoords[j];
-			if(coord1.x == coord2.x && coord1.y == coord2.y)
+			coord2 = ownedMapCoords[j];
+			if(coord2.x == coord.x && coord2.y == coord.y)
 			{
 				found = true;
 				break;
 			}
 		}
-		if(found == false){
-				//add it to add list
-				toAdd.push(coord2);
+		if(!found){
+			ownedMapCoords.push(coord);
+			toAdd.push(index);
 		}
+		
 	}
+
+	tiles = ui.tileSelection.tiles;
 	for(index = 0; index < toAdd.length; index++){
-		ownedMapCoords.push(toAdd[index]);
+		tiles.push(cursorMapCoords[toAdd[index]]);
 	}
+	ui.tileSelection.tiles = tiles;
 }
 
 function removeTiles(args)
 {
 	//remove tiles
-	console.log("removing tiles");
+	toRemove = []
 	for(index = 0; index < cursorMapCoords.length; index++)
 	{
-		coord1 = cursorMapCoords[index];
+		coord = cursorMapCoords[index];
+		coord2 = {};
+
+		j = 0;
 		for(j = 0; j < ownedMapCoords.length; j++)
 		{
 			coord2 = ownedMapCoords[j];
-
-			if(coord1.x == coord2.x && coord1.y == coord2.y){
-				//splice the array
-				ownedMapCoords.splice(j,1);
+			if(coord2.x == coord.x && coord2.y == coord.y)
+			{
+				found = true;
 				break;
 			}
 		}
+
+		if(found){
+			ownedMapCoords.splice(j,1);
+			toRemove.push(coord2);
+		}
 	}
+
+	tiles = ui.tileSelection.tiles;
+	for(index = 0; index < toRemove.length; index++){
+		found = false;
+		j = 0;
+		for(j = 0; j < tiles.length; j++){
+			coord1 = toRemove[index];
+			coord2 = tiles[j];
+
+			if(coord1.x == coord2.x && coord1.y == coord2.y){
+				found = true;
+				break;
+			}
+		}
+		tiles.splice(j,1);
+	}
+	ui.tileSelection.tiles = tiles;
 }
 
 function updateTool(args)
@@ -167,18 +203,10 @@ function updateTool(args)
 		addTiles(args);
 	else
 		removeTiles(args);
-	//update the selection
-	console.log("update selection");
-
-	ui.tileSelection.tiles = cursorMapCoords;
-	tiles = ui.tileSelection.tiles;
-	for(index = 0; index < ownedMapCoords.length; index++)
-		tiles.push(ownedMapCoords[index]);
-
-	ui.tileSelection.tiles = tiles;
 }
 function onLandPermissionToolDown(args){
 	updateTool(args);
+	lastCursorPosition = args.mapCoords;
 }
 
 function updateCursorPosition(args)
@@ -202,16 +230,16 @@ function updateCursorPosition(args)
 	}
 	else
 	{
-		minX = Math.max(0, mapCoords.x - cursorSize*32 + 16);
+		minX = Math.max(0, mapCoords.x - cursorSize*16 + 16);
 		minX = Math.floor(minX/32);
 
-		minY = Math.max(0, mapCoords.y - cursorSize*32 + 16);
+		minY = Math.max(0, mapCoords.y - cursorSize*16 + 16);
 		minY = Math.floor(minY/32);
 
-		maxX = Math.min((map.size.x-1)*32, mapCoords.x + cursorSize*32 - 16);
+		maxX = Math.min((map.size.x-1)*32, mapCoords.x + cursorSize*16 - 16);
 		maxX = Math.floor(maxX/32);
 
-		maxY = Math.min((map.size.y-1)*32, mapCoords.y + cursorSize*32 - 16);
+		maxY = Math.min((map.size.y-1)*32, mapCoords.y + cursorSize*16 - 16);
 		maxY = Math.floor(maxY/32);
 	}
 
@@ -221,6 +249,8 @@ function updateCursorPosition(args)
 		for(j = minY; j <= maxY; j++)
 		{
 			coord = {x: i*32, y: j*32};
+			coord.x = Math.floor(coord.x/32)*32;
+			coord.y = Math.floor(coord.y/32)*32;
 			cursorMapCoords.push(coord);
 		}
 	}
@@ -234,12 +264,16 @@ function updateCursorPosition(args)
 	ui.tileSelection.tiles = tilesSelected;
 }
 function onLandPermissionToolMove(args){
-	updateCursorPosition(args);
-
-	if(args.isDown)
-		updateTool(args);
+	if(args.mapCoords.x != lastCursorPosition.x || args.mapCoords.y != lastCursorPosition.y)
+	{
+		updateCursorPosition(args);
+		if(args.isDown){
+			updateTool(args);
+		}
+	}
+	lastCursorPosition = args.mapCoords;
 }
-	
+
 
 function main() {
 	context.subscribe("action.query",onQuery);
@@ -248,7 +282,6 @@ function main() {
         return;
     }
 	setToOwnedLand = true;
-
 	
 	//ui to permit land
 	ui.registerMenuItem("Land permissions editor", openLandPermissionWindow);
