@@ -9,8 +9,6 @@ cursorSize = 4;
 cursorMapCoords = []
 lastCursorPosition = {}
 
-test = GameCommandType.SetRideAppearance;
-
 function onQuery(Args){
 	if(Args.type != GameCommandType.TogglePause || Args.type != GameCommandType.LoadOrQuit){
 		result = Args.result;
@@ -20,7 +18,7 @@ function onQuery(Args){
 			coords = {x: Math.floor(coords.x/32), y:Math.floor(coords.y/32)};
 			coords = {x: coords.x * 32, y: coords.y * 32};
 
-			tileOwned = ownedMapCoordsMap[x][y].owned;
+			tileOwned = ownedMapCoordsMap[coords.x][coords.y].owned;
 			
 			if(tileOwned == false)
 			{
@@ -179,6 +177,7 @@ function updateTool(args)
 		addTiles(args);
 	else
 		removeTiles(args);
+	needRefresh = true;
 }
 function onLandPermissionToolDown(args){
 	updateTool(args);
@@ -189,7 +188,7 @@ minX = 0;
 maxX = 0;
 minY = 0;
 maxY = 0;
-
+needRefresh = false;
 function updateCursorPosition(args)
 {
 	//update the cursor
@@ -219,15 +218,20 @@ function updateCursorPosition(args)
 	maxY = maxY * 32;
 
 	//push the map coordinates of the tool cursor
-	tiles = []
-	for(i = 0; i < map.size.x*32; i += 32){
-		for(j = 0; j < map.size.y*32; j += 32){
-			if(ownedMapCoordsMap[i][j].owned){
-				tiles.push(ownedMapCoordsMap[i][j].coords);
+	if(needRefresh){
+		oldTiles = []
+		for(i = 0; i < map.size.x*32; i += 32){
+			for(j = 0; j < map.size.y*32; j += 32){
+				if(ownedMapCoordsMap[i][j].owned){
+					oldTiles.push(ownedMapCoordsMap[i][j].coords);
+				}
 			}
 		}
+		needRefresh = false;
+		
 	}
-	ui.tileSelection.tiles = tiles;
+	ui.tileSelection.tiles = oldTiles;
+	tiles = ui.tileSelection.tiles;
 
 	for(i = minX; i <= maxX; i+=32)
 	{
