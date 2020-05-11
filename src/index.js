@@ -4,7 +4,9 @@
 import GameCommandType from './defines'
 
 ownedMapCoordsInit = false;
-ownedMapCoordsMap = []
+mapCoordsOwned = []
+
+
 cursorSize = 4;
 cursorMapCoords = []
 lastCursorPosition = {}
@@ -18,7 +20,7 @@ function onQuery(Args){
 			coords = {x: Math.floor(coords.x/32), y:Math.floor(coords.y/32)};
 			coords = {x: coords.x * 32, y: coords.y * 32};
 
-			tileOwned = ownedMapCoordsMap[coords.x][coords.y].owned;
+			tileOwned = isOwned(coords.x, coords.y);
 			
 			if(tileOwned == false)
 			{
@@ -122,12 +124,15 @@ function openLandPermissionWindow(){
 function addTiles(args)
 {
 	//add the cursor tiles
-	for(index = 0; index < cursorMapCoords.length; index++)
-	{
-		coord = cursorMapCoords[index];
-
-		if(!ownedMapCoordsMap[coord.x][coord.y].owned){
-			ownedMapCoordsMap[coord.x][coord.y].owned = true;
+	tiles = ui.tileSelection.tiles;
+	for(i = 0; i < cursorMapCoords.length; i++){
+		coord = cursorMapCoords[i];
+		setOwned(coord.x,coord.y,true);
+	}
+	tiles = [];
+	for(i = 0; i < mapCoordsOwned.length; i++){
+		if(mapCoordsOwned[i] == true){
+			coord = getCoords(i);
 			tiles.push(coord);
 		}
 	}
@@ -136,36 +141,18 @@ function addTiles(args)
 
 function removeTiles(args)
 {
-	//remove tiles
-	toRemove = []
-	for(index = 0; index < cursorMapCoords.length; index++)
+	console.log(cursorMapCoords.length);
+	for(i = 0; i < cursorMapCoords.length; i++)
 	{
-		coord = cursorMapCoords[index];
-		if(ownedMapCoordsMap[coord.x][coord.y].owned){
-			toRemove.push(coord);
-			ownedMapCoordsMap[coord.x][coord.y].owned = false;
-		}
+		coord = cursorMapCoords[i];
+		setOwned(coord.x,coord.y,false);
 	}
-
-	tiles = ui.tileSelection.tiles;
-	for(index = 0; index < toRemove.length; index++){
-		found = false;
-		j = 0;
-		coord1 = toRemove[index];
-
-		for(j = 0; j < tiles.length; j++){
-			coord2 = tiles[j];
-
-			if(coord1.x == coord2.x && coord1.y == coord2.y){
-				found = true;
-				break;
-			}
+	tiles = [];
+	for(i = 0; i < mapCoordsOwned.length; i++){
+		if(mapCoordsOwned[i] == true){
+			coord = getCoords(i);
+			tiles.push(coord);
 		}
-
-		if(found){
-			tiles.splice(j,1);
-		}
-		
 	}
 	ui.tileSelection.tiles = tiles;
 	
@@ -188,11 +175,14 @@ minX = 0;
 maxX = 0;
 minY = 0;
 maxY = 0;
-needRefresh = false;
+needRefresh = true;
+oldTiles = []
 function updateCursorPosition(args)
 {
 	//update the cursor
 	mapCoords = args.mapCoords;
+	if(mapCoords.x == 0 || mapCoords.y == 0)
+		return;
 
 	//transform into tile coordinates
 	tileCoords = {x:Math.floor(mapCoords.x/32),y:Math.floor(mapCoords.y/32)};
@@ -220,11 +210,11 @@ function updateCursorPosition(args)
 	//push the map coordinates of the tool cursor
 	if(needRefresh){
 		oldTiles = []
-		for(i = 0; i < map.size.x*32; i += 32){
-			for(j = 0; j < map.size.y*32; j += 32){
-				if(ownedMapCoordsMap[i][j].owned){
-					oldTiles.push(ownedMapCoordsMap[i][j].coords);
-				}
+		for(i = 0; i < mapCoordsOwned.length; i++){
+			owned = mapCoordsOwned[i];
+			if(owned){
+				coords = getCoords(i);
+				oldTiles.push(coords);
 			}
 		}
 		needRefresh = false;
@@ -238,6 +228,7 @@ function updateCursorPosition(args)
 		for(j = minY; j <= maxY; j+=32)
 		{
 			coord = {x: i, y: j};
+			console.log(coord);
 			cursorMapCoords.push(coord);
 			tiles.push(coord);
 		}
@@ -255,11 +246,28 @@ function onLandPermissionToolMove(args){
 	lastCursorPosition = args.mapCoords;
 }
 
+function getCoords(index){
+	y = index % (map.size.y);
+	x = Math.floor(index / (map.size.y));
+	return {x:x << 5, y:y << 5};
+}
+
+mapSize32 = {x:map.size.x << 5, y:map.size.y << 5};
+function isOwned(x,y){
+	index = ((y % (mapSize32.y)) + (map.size.y*x)) >> 5;
+	return mapCoordsOwned[index];
+}
+
+function setOwned(x,y,owned){
+	index = ((y % (mapSize32.y)) + (map.size.y*x)) >> 5;
+	mapCoordsOwned[index] = owned;
+}
+
 function initOwnedMapCoords(){
-	for(i = 0; i < map.size.x*32; i += 32){
-		ownedMapCoordsMap[i] = []
-		for(j = 0; j < map.size.y*32; j += 32){
-			ownedMapCoordsMap[i][j] = {owned: false, coords: {x:i, y:j}};
+	mapSize32 = {x:map.size.x << 5, y:map.size.y << 5};
+	for(i = 0; i < mapSize32.x; i += 32){
+		for(j = 0; j < mapSize32.y; j += 32){
+			setOwned(i,j,false);
 		}
 	}
 	lastMapSize = map.size;
