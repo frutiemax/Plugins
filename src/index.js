@@ -4,7 +4,7 @@
 import GameCommandType from './defines'
 
 ownedMapCoordsInit = false;
-ownedMapCoords = []
+ownedMapCoordsMap = []
 cursorSize = 4;
 cursorMapCoords = []
 lastCursorPosition = {}
@@ -20,9 +20,9 @@ function onQuery(Args){
 			coords = {x: Math.floor(coords.x/32), y:Math.floor(coords.y/32)};
 			coords = {x: coords.x * 32, y: coords.y * 32};
 
-			tileOwned = ownedMapCoords.indexOf(coords);
+			tileOwned = ownedMapCoordsMap[x][y].owned;
 			
-			if(tileOwned == -1)
+			if(tileOwned == false)
 			{
 				result.error = 1;
 				result.errorTitle = "Construction is not allowed outside of holy land";
@@ -124,31 +124,14 @@ function openLandPermissionWindow(){
 function addTiles(args)
 {
 	//add the cursor tiles
-	toAdd = []
 	for(index = 0; index < cursorMapCoords.length; index++)
 	{
 		coord = cursorMapCoords[index];
-		found = false;
 
-		for(j = 0; j < ownedMapCoords.length; j++)
-		{
-			coord2 = ownedMapCoords[j];
-			if(coord2.x == coord.x && coord2.y == coord.y)
-			{
-				found = true;
-				break;
-			}
+		if(!ownedMapCoordsMap[coord.x][coord.y].owned){
+			ownedMapCoordsMap[coord.x][coord.y].owned = true;
+			tiles.push(coord);
 		}
-		if(!found){
-			ownedMapCoords.push(coord);
-			toAdd.push(index);
-		}
-		
-	}
-
-	tiles = ui.tileSelection.tiles;
-	for(index = 0; index < toAdd.length; index++){
-		tiles.push(cursorMapCoords[toAdd[index]]);
 	}
 	ui.tileSelection.tiles = tiles;
 }
@@ -160,22 +143,9 @@ function removeTiles(args)
 	for(index = 0; index < cursorMapCoords.length; index++)
 	{
 		coord = cursorMapCoords[index];
-		coord2 = {};
-
-		j = 0;
-		for(j = 0; j < ownedMapCoords.length; j++)
-		{
-			coord2 = ownedMapCoords[j];
-			if(coord2.x == coord.x && coord2.y == coord.y)
-			{
-				found = true;
-				break;
-			}
-		}
-
-		if(found){
-			ownedMapCoords.splice(j,1);
-			toRemove.push(coord2);
+		if(ownedMapCoordsMap[coord.x][coord.y].owned){
+			toRemove.push(coord);
+			ownedMapCoordsMap[coord.x][coord.y].owned = false;
 		}
 	}
 
@@ -183,8 +153,9 @@ function removeTiles(args)
 	for(index = 0; index < toRemove.length; index++){
 		found = false;
 		j = 0;
+		coord1 = toRemove[index];
+
 		for(j = 0; j < tiles.length; j++){
-			coord1 = toRemove[index];
 			coord2 = tiles[j];
 
 			if(coord1.x == coord2.x && coord1.y == coord2.y){
@@ -192,9 +163,14 @@ function removeTiles(args)
 				break;
 			}
 		}
-		tiles.splice(j,1);
+
+		if(found){
+			tiles.splice(j,1);
+		}
+		
 	}
 	ui.tileSelection.tiles = tiles;
+	
 }
 
 function updateTool(args)
@@ -209,6 +185,11 @@ function onLandPermissionToolDown(args){
 	lastCursorPosition = args.mapCoords;
 }
 
+minX = 0;
+maxX = 0;
+minY = 0;
+maxY = 0;
+
 function updateCursorPosition(args)
 {
 	//update the cursor
@@ -218,50 +199,46 @@ function updateCursorPosition(args)
 	tileCoords = {x:Math.floor(mapCoords.x/32),y:Math.floor(mapCoords.y/32)};
 
 	//clear the cursor map coords
-	cursorMapCoords = []
+	cursorMapCoords = [];
 
-	//get the min,max x and y coordinates
-	if((cursorSize % 2) != 0)
-	{
-		minX = Math.max(0, tileCoords.x - (cursorSize-1)/2);
-		minY = Math.max(0, tileCoords.y - (cursorSize-1)/2);
-		maxX = Math.min(map.size.x-1, tileCoords.x + (cursorSize-1)/2);
-		maxY = Math.min(map.size.y-1, tileCoords.y + (cursorSize-1)/2);
-	}
-	else
-	{
-		minX = Math.max(0, mapCoords.x - cursorSize*16 + 16);
-		minX = Math.floor(minX/32);
+	minX = Math.max(0, mapCoords.x - cursorSize*16 + 16);
+	minX = Math.floor(minX/32);
 
-		minY = Math.max(0, mapCoords.y - cursorSize*16 + 16);
-		minY = Math.floor(minY/32);
+	minY = Math.max(0, mapCoords.y - cursorSize*16 + 16);
+	minY = Math.floor(minY/32);
 
-		maxX = Math.min((map.size.x-1)*32, mapCoords.x + cursorSize*16 - 16);
-		maxX = Math.floor(maxX/32);
+	maxX = Math.min((map.size.x-1)*32, mapCoords.x + cursorSize*16 - 16);
+	maxX = Math.floor(maxX/32);
 
-		maxY = Math.min((map.size.y-1)*32, mapCoords.y + cursorSize*16 - 16);
-		maxY = Math.floor(maxY/32);
-	}
+	maxY = Math.min((map.size.y-1)*32, mapCoords.y + cursorSize*16 - 16);
+	maxY = Math.floor(maxY/32);
+
+	minX = minX * 32;
+	maxX = maxX * 32;
+	minY = minY * 32;
+	maxY = maxY * 32;
 
 	//push the map coordinates of the tool cursor
-	for(i = minX; i <= maxX; i++)
-	{
-		for(j = minY; j <= maxY; j++)
-		{
-			coord = {x: i*32, y: j*32};
-			coord.x = Math.floor(coord.x/32)*32;
-			coord.y = Math.floor(coord.y/32)*32;
-			cursorMapCoords.push(coord);
+	tiles = []
+	for(i = 0; i < map.size.x*32; i += 32){
+		for(j = 0; j < map.size.y*32; j += 32){
+			if(ownedMapCoordsMap[i][j].owned){
+				tiles.push(ownedMapCoordsMap[i][j].coords);
+			}
 		}
 	}
+	ui.tileSelection.tiles = tiles;
 
-	//update the highlighted cursor tiles
-	ui.tileSelection.tiles = ownedMapCoords;
-	tilesSelected = ui.tileSelection.tiles;
-	for(index = 0; index < cursorMapCoords.length; index++){
-		tilesSelected.push(cursorMapCoords[index]);
+	for(i = minX; i <= maxX; i+=32)
+	{
+		for(j = minY; j <= maxY; j+=32)
+		{
+			coord = {x: i, y: j};
+			cursorMapCoords.push(coord);
+			tiles.push(coord);
+		}
 	}
-	ui.tileSelection.tiles = tilesSelected;
+	ui.tileSelection.tiles = tiles;
 }
 function onLandPermissionToolMove(args){
 	if(args.mapCoords.x != lastCursorPosition.x || args.mapCoords.y != lastCursorPosition.y)
@@ -274,9 +251,26 @@ function onLandPermissionToolMove(args){
 	lastCursorPosition = args.mapCoords;
 }
 
+function initOwnedMapCoords(){
+	for(i = 0; i < map.size.x*32; i += 32){
+		ownedMapCoordsMap[i] = []
+		for(j = 0; j < map.size.y*32; j += 32){
+			ownedMapCoordsMap[i][j] = {owned: false, coords: {x:i, y:j}};
+		}
+	}
+	lastMapSize = map.size;
+}
 
+lastMapSize = 0;
+function onTick(){
+	if(lastMapSize.x != map.size.x || lastMapSize.y != map.size.y)
+		initOwnedMapCoords();
+}
 function main() {
 	context.subscribe("action.query",onQuery);
+
+	initOwnedMapCoords();
+	console.log("map initialized");
 	
 	if (typeof ui === 'undefined') {
         return;
@@ -285,6 +279,9 @@ function main() {
 	
 	//ui to permit land
 	ui.registerMenuItem("Land permissions editor", openLandPermissionWindow);
+
+	//check if the map size has changed
+	context.subscribe("interval.tick", onTick);
 	
 	return;
 	
