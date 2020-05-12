@@ -4,7 +4,9 @@
 import GameCommandType from './defines'
 
 ownedMapCoordsInit = false;
-mapCoordsOwned = []
+mapCoordsOwned = [];
+players = [];
+isPlayerOnline = []
 
 
 cursorSize = 4;
@@ -12,7 +14,7 @@ cursorMapCoords = []
 lastCursorPosition = {}
 
 function onQuery(Args){
-	if(Args.type != GameCommandType.TogglePause || Args.type != GameCommandType.LoadOrQuit){
+	if(Args.type != GameCommandType.TogglePause && Args.type != GameCommandType.LoadOrQuit){
 		result = Args.result;
 		
 		if(result.position != null){
@@ -20,7 +22,7 @@ function onQuery(Args){
 			coords = {x: Math.floor(coords.x/32), y:Math.floor(coords.y/32)};
 			coords = {x: coords.x * 32, y: coords.y * 32};
 
-			tileOwned = isOwned(coords.x, coords.y);
+			tileOwned = isOwned(network.currentPlayer, coords.x, coords.y);
 			
 			if(tileOwned == false)
 			{
@@ -43,6 +45,7 @@ function onLandButtonToggleClick(){
 }
 
 function onLandPermissionWindowClose(){
+	ui.tool.cancel();
 }
 
 function onIncrementCursorSize(){
@@ -66,6 +69,12 @@ function updateCursorSizeText(){
 
 	spinner = window.findWidget("cursor_size_spinner");
 	spinner.text = cursorSize + "x" + cursorSize;
+}
+
+players = []
+selectedPlayer = 0;
+function onPlayerDropDownChanged(index){
+	selectedPlayer = index;
 }
 
 function openLandPermissionWindow(){
@@ -92,6 +101,19 @@ function openLandPermissionWindow(){
 		onDecrement: onDecrementCursorSize,
         onIncrement: onIncrementCursorSize
 	}
+
+	playerDropDown = {
+		type : "dropdown",
+		x : 100,
+		y : 200,
+		width : 150,
+		height : 12,
+		name : "player_dropdown",
+		text : "Players",
+		items : [],
+		selectedIndex : 0,
+		onChange : onPlayerDropDownChanged
+	}
 	
 	landEditor = ui.openWindow({
 		classification: "land_permissions",
@@ -102,7 +124,7 @@ function openLandPermissionWindow(){
 		title:"Land Permissions Editor",
 		minWidth: 100,
 		minHeight: 50,
-		widgets: [landButton,cursorSizeWidget],
+		widgets: [landButton,cursorSizeWidget, playerDropDown],
 		colours: [200],
 		isSticky: true,
 		
@@ -119,19 +141,25 @@ function openLandPermissionWindow(){
 	//show tool
 	ui.activateTool(landPermissionToolDesc);
 	updateCursorSizeText();
+
+	
+	if(network.mode == "server" || network.mode == "none"){
+		addPlayer(network.currentPlayer);
+		selectedPlayer = network.currentPlayer.id;
+	}
 }
 
-function addTiles(args)
+function addTiles(args, player)
 {
 	//add the cursor tiles
 	tiles = ui.tileSelection.tiles;
 	for(i = 0; i < cursorMapCoords.length; i++){
 		coord = cursorMapCoords[i];
-		setOwned(coord.x,coord.y,true);
+		setOwned(player, coord.x,coord.y,true);
 	}
 	tiles = [];
-	for(i = 0; i < mapCoordsOwned.length; i++){
-		if(mapCoordsOwned[i] == true){
+	for(i = 0; i < mapCoordsOwned[player].length; i++){
+		if(mapCoordsOwned[player][i] == true){
 			coord = getCoords(i);
 			tiles.push(coord);
 		}
@@ -139,17 +167,16 @@ function addTiles(args)
 	ui.tileSelection.tiles = tiles;
 }
 
-function removeTiles(args)
+function removeTiles(args, player)
 {
-	console.log(cursorMapCoords.length);
 	for(i = 0; i < cursorMapCoords.length; i++)
 	{
 		coord = cursorMapCoords[i];
-		setOwned(coord.x,coord.y,false);
+		setOwned(player, coord.x,coord.y,false);
 	}
 	tiles = [];
-	for(i = 0; i < mapCoordsOwned.length; i++){
-		if(mapCoordsOwned[i] == true){
+	for(i = 0; i < mapCoordsOwned[player].length; i++){
+		if(mapCoordsOwned[player][i] == true){
 			coord = getCoords(i);
 			tiles.push(coord);
 		}
@@ -158,17 +185,26 @@ function removeTiles(args)
 	
 }
 
-function updateTool(args)
+function updateTool(args, player)
 {
 	if(setToOwnedLand)
-		addTiles(args);
+		addTiles(args, player);
 	else
-		removeTiles(args);
+		removeTiles(args, player);
 	needRefresh = true;
 }
 function onLandPermissionToolDown(args){
-	updateTool(args);
-	lastCursorPosition = args.mapCoords;
+	groupIndex = network.currentPlayer.group;
+
+	//check for admin
+	if(groupIndex != 0){
+		ui.tileSelection.tiles = [];
+	}
+	else{
+		updateTool(args, selectedPlayer);
+		lastCursorPosition = args.mapCoords;
+	}
+	
 }
 
 minX = 0;
@@ -177,7 +213,7 @@ minY = 0;
 maxY = 0;
 needRefresh = true;
 oldTiles = []
-function updateCursorPosition(args)
+function updateCursorPosition(args, player)
 {
 	//update the cursor
 	mapCoords = args.mapCoords;
@@ -210,8 +246,8 @@ function updateCursorPosition(args)
 	//push the map coordinates of the tool cursor
 	if(needRefresh){
 		oldTiles = []
-		for(i = 0; i < mapCoordsOwned.length; i++){
-			owned = mapCoordsOwned[i];
+		for(i = 0; i < mapCoordsOwned[player].length; i++){
+			owned = mapCoordsOwned[player][i];
 			if(owned){
 				coords = getCoords(i);
 				oldTiles.push(coords);
@@ -228,7 +264,6 @@ function updateCursorPosition(args)
 		for(j = minY; j <= maxY; j+=32)
 		{
 			coord = {x: i, y: j};
-			console.log(coord);
 			cursorMapCoords.push(coord);
 			tiles.push(coord);
 		}
@@ -236,14 +271,34 @@ function updateCursorPosition(args)
 	ui.tileSelection.tiles = tiles;
 }
 function onLandPermissionToolMove(args){
-	if(args.mapCoords.x != lastCursorPosition.x || args.mapCoords.y != lastCursorPosition.y)
+	//get group of current player
+	groupIndex = network.currentPlayer.group;
+
+	//check for admin
+	if(groupIndex != 0){
+		ui.tileSelection.tiles = [];
+	}
+	else if(args.mapCoords.x != lastCursorPosition.x || args.mapCoords.y != lastCursorPosition.y)
 	{
-		updateCursorPosition(args);
+		updateCursorPosition(args, selectedPlayer);
 		if(args.isDown){
-			updateTool(args);
+			updateTool(args, selectedPlayer);
 		}
 	}
 	lastCursorPosition = args.mapCoords;
+}
+
+function onPlayerJoin(args){
+	//add player
+	addPlayer(args.player);
+
+	//put this player back online
+	isPlayerOnline[args.player] = true;
+}
+
+function onPlayerLeave(args){
+	//put this player offline
+	isPlayerOnline[args.player] = false;
 }
 
 function getCoords(index){
@@ -253,35 +308,64 @@ function getCoords(index){
 }
 
 mapSize32 = {x:map.size.x << 5, y:map.size.y << 5};
-function isOwned(x,y){
+function isOwned(player,x,y){
 	index = ((y % (mapSize32.y)) + (map.size.y*x)) >> 5;
-	return mapCoordsOwned[index];
+	return mapCoordsOwned[player][index];
 }
 
-function setOwned(x,y,owned){
+function setOwned(player,x,y,owned){
 	index = ((y % (mapSize32.y)) + (map.size.y*x)) >> 5;
-	mapCoordsOwned[index] = owned;
+	mapCoordsOwned[player][index] = owned;
 }
 
-function initOwnedMapCoords(){
+function initOwnedMapCoords(player){
 	mapSize32 = {x:map.size.x << 5, y:map.size.y << 5};
 	for(i = 0; i < mapSize32.x; i += 32){
 		for(j = 0; j < mapSize32.y; j += 32){
-			setOwned(i,j,false);
+			setOwned(player,i,j,false);
 		}
 	}
 	lastMapSize = map.size;
 }
 
+function addPlayer(player){
+
+	//check if player exists
+	for(p = 0; p < players.length; p++){
+		if(players[p] == player.id){
+			return;
+		}
+	}
+
+	//add the player and initialize its coordinates
+	console.log("adding player #" + player.id);
+	players.push(player.id);
+	mapCoordsOwned[player.id] = [];
+
+	//add the player to the drop down list
+	window = ui.getWindow("land_permissions")
+	dropdown = window.findWidget("player_dropdown");
+	items = [];
+
+	items.push("frutiemax");
+	dropdown.items = items;
+	dropdown.selectedIndex = 0;
+	console.log("dropdown = " + dropdown.items);
+
+
+	initOwnedMapCoords(player.id);
+}
+
 lastMapSize = 0;
 function onTick(){
 	if(lastMapSize.x != map.size.x || lastMapSize.y != map.size.y)
-		initOwnedMapCoords();
+		initOwnedMapCoords(network.currentPlayer);
 }
+
 function main() {
 	context.subscribe("action.query",onQuery);
 
-	initOwnedMapCoords();
+	
 	console.log("map initialized");
 	
 	if (typeof ui === 'undefined') {
@@ -293,7 +377,11 @@ function main() {
 	ui.registerMenuItem("Land permissions editor", openLandPermissionWindow);
 
 	//check if the map size has changed
-	context.subscribe("interval.tick", onTick);
+	//context.subscribe("interval.tick", onTick);
+
+	//subscribe to player join and leave
+	context.subscribe("network.join", onPlayerJoin);
+	context.subscribe("network.leave", onPlayerLeave);
 	
 	return;
 	
