@@ -72,9 +72,67 @@ function updateCursorSizeText(){
 }
 
 players = []
-selectedPlayer = 0;
-function onPlayerDropDownChanged(index){
+selectedPlayer = {}
+/*function onPlayerDropDownChanged(index){
 	selectedPlayer = index;
+}*/
+
+function onDecrementPlayerSelection(){
+	//get the id of the selected player
+	id = selectedPlayer.id;
+	id = id - 1;
+	if(id < 0)
+		id = 0;
+	selectedPlayer = network.getPlayer(id);
+	updatePlayerSelectionText();
+
+	//refresh the selected tiles
+	oldTiles = []
+	for(i = 0; i < mapCoordsOwned[id].length; i++){
+		owned = mapCoordsOwned[id][i];
+		if(owned){
+				coords = getCoords(i);
+				oldTiles.push(coords);
+			}
+		}
+		needRefresh = false;
+	}
+	ui.tileSelection.tiles = oldTiles;
+}
+
+function updatePlayerSelectionText(){
+	//get the player name
+	name = selectedPlayer.name;
+
+	//get the spinner
+	window = ui.getWindow("land_permissions");
+	spinner = window.findWidget("player_selection_spinner");
+	spinner.text = name;
+}
+
+function onIncrementPlayerSelection(){
+	id = selectedPlayer.id;
+	id = id + 1;
+
+	console.log("increment player selection")
+	
+	if(id >= network.players.length)
+		id = network.players.length - 1;
+	selectedPlayer = network.getPlayer(id);
+	updatePlayerSelectionText();
+
+	//refresh the selected tiles
+	oldTiles = []
+	for(i = 0; i < mapCoordsOwned[id].length; i++){
+		owned = mapCoordsOwned[id][i];
+		if(owned){
+				coords = getCoords(i);
+				oldTiles.push(coords);
+			}
+		}
+		needRefresh = false;
+	}
+	ui.tileSelection.tiles = oldTiles;
 }
 
 function openLandPermissionWindow(){
@@ -102,7 +160,19 @@ function openLandPermissionWindow(){
         onIncrement: onIncrementCursorSize
 	}
 
-	playerDropDown = {
+	playerSelectionSpinner = {
+		type: "spinner",
+		x : 100,
+		y: 200,
+		width : 150,
+		height : 12,
+		name: "player_selection_spinner",
+		text : "",
+		onDecrement: onDecrementPlayerSelection,
+        onIncrement: onIncrementPlayerSelection
+	}
+
+	/*playerDropDown = {
 		type : "dropdown",
 		x : 100,
 		y : 200,
@@ -113,7 +183,7 @@ function openLandPermissionWindow(){
 		items : [],
 		selectedIndex : 0,
 		onChange : onPlayerDropDownChanged
-	}
+	}*/
 	
 	landEditor = ui.openWindow({
 		classification: "land_permissions",
@@ -124,7 +194,7 @@ function openLandPermissionWindow(){
 		title:"Land Permissions Editor",
 		minWidth: 100,
 		minHeight: 50,
-		widgets: [landButton,cursorSizeWidget, playerDropDown],
+		widgets: [landButton,cursorSizeWidget, playerSelectionSpinner],
 		colours: [200],
 		isSticky: true,
 		
@@ -201,7 +271,7 @@ function onLandPermissionToolDown(args){
 		ui.tileSelection.tiles = [];
 	}
 	else{
-		updateTool(args, selectedPlayer);
+		updateTool(args, selectedPlayer.id);
 		lastCursorPosition = args.mapCoords;
 	}
 	
@@ -280,9 +350,9 @@ function onLandPermissionToolMove(args){
 	}
 	else if(args.mapCoords.x != lastCursorPosition.x || args.mapCoords.y != lastCursorPosition.y)
 	{
-		updateCursorPosition(args, selectedPlayer);
+		updateCursorPosition(args, selectedPlayer.id);
 		if(args.isDown){
-			updateTool(args, selectedPlayer);
+			updateTool(args, selectedPlayer.id);
 		}
 	}
 	lastCursorPosition = args.mapCoords;
@@ -290,10 +360,12 @@ function onLandPermissionToolMove(args){
 
 function onPlayerJoin(args){
 	//add player
-	addPlayer(args.player);
+	player = network.getPlayer(args.player);
+	console.log(player);
+	addPlayer(player);
 
 	//put this player back online
-	isPlayerOnline[args.player] = true;
+	isPlayerOnline[player.id] = true;
 }
 
 function onPlayerLeave(args){
@@ -332,26 +404,17 @@ function addPlayer(player){
 
 	//check if player exists
 	for(p = 0; p < players.length; p++){
-		if(players[p] == player.id){
+		if(players[p].id == player.id){
 			return;
 		}
 	}
 
 	//add the player and initialize its coordinates
 	console.log("adding player #" + player.id);
-	players.push(player.id);
+	players.push(player);
 	mapCoordsOwned[player.id] = [];
-
-	//add the player to the drop down list
-	window = ui.getWindow("land_permissions")
-	dropdown = window.findWidget("player_dropdown");
-	items = [];
-
-	items.push("frutiemax");
-	dropdown.items = items;
-	dropdown.selectedIndex = 0;
-	console.log("dropdown = " + dropdown.items);
-
+	selectedPlayer = player;
+	updatePlayerSelectionText();
 
 	initOwnedMapCoords(player.id);
 }
@@ -382,9 +445,7 @@ function main() {
 	//subscribe to player join and leave
 	context.subscribe("network.join", onPlayerJoin);
 	context.subscribe("network.leave", onPlayerLeave);
-	
 	return;
-	
 }
 
 registerPlugin({
