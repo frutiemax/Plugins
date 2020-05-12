@@ -22,8 +22,7 @@ function onQuery(Args){
 			coords = {x: Math.floor(coords.x/32), y:Math.floor(coords.y/32)};
 			coords = {x: coords.x * 32, y: coords.y * 32};
 
-			
-			tileOwned = isOwned(network.currentPlayer.id, coords.x, coords.y);
+			tileOwned = isOwned(Args.player, coords.x, coords.y);
 			
 			if(tileOwned == false)
 			{
@@ -78,13 +77,30 @@ selectedPlayer = {}
 	selectedPlayer = index;
 }*/
 
+function findPlayerByID(id){
+	for(i = 0; i < network.players.length; i++){
+		p = network.players[i];
+		if(p.id == id)
+			return p;
+	}
+	return null;
+}
 function onDecrementPlayerSelection(){
 	//get the id of the selected player
-	id = selectedPlayer.id;
+	if(network.mode == "none"){
+		id = 0;
+		return;
+	}
+	else{
+		id = selectedPlayer.id;
+	}
+
+	console.log("test");
 	id = id - 1;
 	if(id < 0)
 		id = 0;
-	selectedPlayer = network.getPlayer(id);
+	
+	selectedPlayer = findPlayerByID(id);
 	updatePlayerSelectionText();
 
 	//refresh the selected tiles
@@ -111,12 +127,19 @@ function updatePlayerSelectionText(){
 }
 
 function onIncrementPlayerSelection(){
-	id = selectedPlayer.id;
+	if(network.mode == "none"){
+		id = 0;
+		return;
+	}
+	else{
+		id = selectedPlayer.id;
+	}
+	
 	id = id + 1;
 
 	if(id >= network.players.length)
 		id = network.players.length - 1;
-	selectedPlayer = network.getPlayer(id);
+	selectedPlayer = findPlayerByID(id);
 	updatePlayerSelectionText();
 
 	//refresh the selected tiles
@@ -133,11 +156,7 @@ function onIncrementPlayerSelection(){
 }
 
 function onToolUp(args){
-	console.log("tool released");
-
-	//send the tiles on the network
-	console.log(selectedPlayer);
-	context.executeAction("modify_land_restrictions", {player : selectedPlayer, playerOwnedTiles : mapCoordsOwned[selectedPlayer.id]});
+	context.executeAction("modify_land_restrictions", {player : selectedPlayer.id, playerOwnedTiles : mapCoordsOwned[selectedPlayer.id]});
 }
 function openLandPermissionWindow(){
 	
@@ -217,13 +236,10 @@ function openLandPermissionWindow(){
 	ui.activateTool(landPermissionToolDesc);
 	updateCursorSizeText();
 
-	//add all players
-	console.log("adding players");
 	for(i = 0; i < players.length; i++){
 		addPlayer(players[i]);
 	}
-	console.log("added players");
-	selectedPlayer = network.getPlayer(0);
+	selectedPlayer = network.currentPlayer;
 	updatePlayerSelectionText();
 }
 
@@ -275,8 +291,6 @@ function updateTool(args, player)
 	needRefresh = true;
 }
 function onLandPermissionToolDown(args){
-	groupIndex = network.currentPlayer.group;
-
 	updateTool(args, selectedPlayer.id);
 	lastCursorPosition = args.mapCoords;
 }
@@ -359,7 +373,6 @@ function onLandPermissionToolMove(args){
 function onPlayerJoin(args){
 	//add player
 	player = network.getPlayer(args.player);
-	console.log(player);
 	addPlayer(player);
 
 	//put this player back online
@@ -408,7 +421,6 @@ function addPlayer(player){
 	}
 
 	//add the player and initialize its coordinates
-	console.log("adding player #" + player.id);
 	players.push(player);
 	mapCoordsOwned[player.id] = [];
 	initOwnedMapCoords(player.id);
@@ -421,8 +433,7 @@ function onTick(){
 }
 
 function onLandRestrictionsModify(args){
-	mapCoordsOwned[args.player.id] = args.playerOwnedTiles;
-	console.log(args);
+	mapCoordsOwned[args.player] = args.playerOwnedTiles;
 
 	return {
 		error : 0,
@@ -444,9 +455,6 @@ function main() {
 	
 	//ui to permit land
 	ui.registerMenuItem("Land permissions editor", openLandPermissionWindow);
-
-	//check if the map size has changed
-	//context.subscribe("interval.tick", onTick);
 
 	//subscribe to player join and leave
 	context.subscribe("network.join", onPlayerJoin);
