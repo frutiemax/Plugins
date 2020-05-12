@@ -22,7 +22,8 @@ function onQuery(Args){
 			coords = {x: Math.floor(coords.x/32), y:Math.floor(coords.y/32)};
 			coords = {x: coords.x * 32, y: coords.y * 32};
 
-			tileOwned = isOwned(network.currentPlayer, coords.x, coords.y);
+			
+			tileOwned = isOwned(network.currentPlayer.id, coords.x, coords.y);
 			
 			if(tileOwned == false)
 			{
@@ -96,7 +97,6 @@ function onDecrementPlayerSelection(){
 			}
 		}
 		needRefresh = false;
-	}
 	ui.tileSelection.tiles = oldTiles;
 }
 
@@ -114,8 +114,6 @@ function onIncrementPlayerSelection(){
 	id = selectedPlayer.id;
 	id = id + 1;
 
-	console.log("increment player selection")
-	
 	if(id >= network.players.length)
 		id = network.players.length - 1;
 	selectedPlayer = network.getPlayer(id);
@@ -131,10 +129,16 @@ function onIncrementPlayerSelection(){
 			}
 		}
 		needRefresh = false;
-	}
 	ui.tileSelection.tiles = oldTiles;
 }
 
+function onToolUp(args){
+	console.log("tool released");
+
+	//send the tiles on the network
+	console.log(selectedPlayer);
+	context.executeAction("modify_land_restrictions", {player : selectedPlayer, playerOwnedTiles : mapCoordsOwned[selectedPlayer.id]});
+}
 function openLandPermissionWindow(){
 	
 	landButton = {
@@ -206,17 +210,21 @@ function openLandPermissionWindow(){
 		cursor : "fence_down",
 		onDown : onLandPermissionToolDown,
 		onMove : onLandPermissionToolMove,
+		onUp : onToolUp
 	};
 	
 	//show tool
 	ui.activateTool(landPermissionToolDesc);
 	updateCursorSizeText();
 
-	
-	if(network.mode == "server" || network.mode == "none"){
-		addPlayer(network.currentPlayer);
-		selectedPlayer = network.currentPlayer.id;
+	//add all players
+	console.log("adding players");
+	for(i = 0; i < players.length; i++){
+		addPlayer(players[i]);
 	}
+	console.log("added players");
+	selectedPlayer = network.getPlayer(0);
+	updatePlayerSelectionText();
 }
 
 function addTiles(args, player)
@@ -257,7 +265,10 @@ function removeTiles(args, player)
 
 function updateTool(args, player)
 {
-	if(setToOwnedLand)
+	if(groupIndex != 0){
+		return;
+	}
+	else if(setToOwnedLand)
 		addTiles(args, player);
 	else
 		removeTiles(args, player);
@@ -266,15 +277,8 @@ function updateTool(args, player)
 function onLandPermissionToolDown(args){
 	groupIndex = network.currentPlayer.group;
 
-	//check for admin
-	if(groupIndex != 0){
-		ui.tileSelection.tiles = [];
-	}
-	else{
-		updateTool(args, selectedPlayer.id);
-		lastCursorPosition = args.mapCoords;
-	}
-	
+	updateTool(args, selectedPlayer.id);
+	lastCursorPosition = args.mapCoords;
 }
 
 minX = 0;
@@ -341,14 +345,8 @@ function updateCursorPosition(args, player)
 	ui.tileSelection.tiles = tiles;
 }
 function onLandPermissionToolMove(args){
-	//get group of current player
-	groupIndex = network.currentPlayer.group;
 
-	//check for admin
-	if(groupIndex != 0){
-		ui.tileSelection.tiles = [];
-	}
-	else if(args.mapCoords.x != lastCursorPosition.x || args.mapCoords.y != lastCursorPosition.y)
+	if(args.mapCoords.x != lastCursorPosition.x || args.mapCoords.y != lastCursorPosition.y)
 	{
 		updateCursorPosition(args, selectedPlayer.id);
 		if(args.isDown){
@@ -413,9 +411,6 @@ function addPlayer(player){
 	console.log("adding player #" + player.id);
 	players.push(player);
 	mapCoordsOwned[player.id] = [];
-	selectedPlayer = player;
-	updatePlayerSelectionText();
-
 	initOwnedMapCoords(player.id);
 }
 
@@ -423,6 +418,17 @@ lastMapSize = 0;
 function onTick(){
 	if(lastMapSize.x != map.size.x || lastMapSize.y != map.size.y)
 		initOwnedMapCoords(network.currentPlayer);
+}
+
+function onLandRestrictionsModify(args){
+	mapCoordsOwned[args.player.id] = args.playerOwnedTiles;
+	console.log(args);
+
+	return {
+		error : 0,
+		errorTitle : "",
+		errorMessage : ""
+	};
 }
 
 function main() {
@@ -445,6 +451,22 @@ function main() {
 	//subscribe to player join and leave
 	context.subscribe("network.join", onPlayerJoin);
 	context.subscribe("network.leave", onPlayerLeave);
+
+	//register custom game action for sending tiles on tool release
+	context.registerAction("modify_land_restrictions", 
+							function(args){return onLandRestrictionsModify(args);}, 
+							function(args){return onLandRestrictionsModify(args);});
+
+	if(network.mode == "server" || network.mode == "none"){
+		addPlayer(network.currentPlayer);
+		selectedPlayer = network.currentPlayer.id;
+	}
+
+	//add other players
+	for(i = 0; i < network.numPlayers; i++){
+		addPlayer(network.getPlayer(i));
+	}
+
 	return;
 }
 
