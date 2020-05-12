@@ -14,8 +14,9 @@ cursorMapCoords = []
 lastCursorPosition = {}
 
 function onQuery(Args){
+	result = Args.result;
 	if(Args.type != GameCommandType.TogglePause && Args.type != GameCommandType.LoadOrQuit){
-		result = Args.result;
+		
 		
 		if(result.position != null){
 			coords = Args.result.position;
@@ -23,14 +24,13 @@ function onQuery(Args){
 			coords = {x: coords.x * 32, y: coords.y * 32};
 
 			tileOwned = isOwned(Args.player, coords.x, coords.y);
-			
+			console.log(tileOwned);
 			if(tileOwned == false)
 			{
 				result.error = 1;
 				result.errorTitle = "Construction is not allowed outside of holy land";
 			}
 		}
-		
 	}
 }
 
@@ -162,9 +162,9 @@ function openLandPermissionWindow(){
 	
 	landButton = {
 		type: "button",
-		x : 250,
-		y: 250,
-		width : 46,
+		x : 110,
+		y: 60,
+		width : 50,
 		height : 12,
 		name: "land_editor_toggle",
 		onClick: onLandButtonToggleClick,
@@ -173,9 +173,9 @@ function openLandPermissionWindow(){
 
 	cursorSizeWidget = {
 		type: "spinner",
-		x : 150,
-		y: 250,
-		width : 80,
+		x : 10,
+		y: 60,
+		width : 100,
 		height : 12,
 		name: "cursor_size_spinner",
 		text : "1x1",
@@ -185,8 +185,8 @@ function openLandPermissionWindow(){
 
 	playerSelectionSpinner = {
 		type: "spinner",
-		x : 100,
-		y: 200,
+		x : 10,
+		y: 48,
 		width : 150,
 		height : 12,
 		name: "player_selection_spinner",
@@ -212,8 +212,8 @@ function openLandPermissionWindow(){
 		classification: "land_permissions",
 		x: 500,
 		y: 500,
-		width: 300,
-		height: 300,
+		width: 170,
+		height: 100,
 		title:"Land Permissions Editor",
 		minWidth: 100,
 		minHeight: 50,
@@ -281,7 +281,8 @@ function removeTiles(args, player)
 
 function updateTool(args, player)
 {
-	if(groupIndex != 0){
+	group = network.currentPlayer.group;
+	if(group != 0){
 		return;
 	}
 	else if(setToOwnedLand)
@@ -434,7 +435,7 @@ function onTick(){
 
 function onLandRestrictionsModify(args){
 	mapCoordsOwned[args.player] = args.playerOwnedTiles;
-
+	needRefresh = true;
 	return {
 		error : 0,
 		errorTitle : "",
