@@ -24,7 +24,6 @@ function onQuery(Args){
 			coords = {x: coords.x * 32, y: coords.y * 32};
 
 			tileOwned = isOwned(Args.player, coords.x, coords.y);
-			console.log(tileOwned);
 			if(tileOwned == false)
 			{
 				result.error = 1;
@@ -77,15 +76,15 @@ selectedPlayer = {}
 	selectedPlayer = index;
 }*/
 
-
-function findPlayerByID(id){
-	for(i = 0; i < network.players.length; i++){
-		p = network.players[i];
-		if(p.id == id)
-			return p;
+function findPlayerID(playerName){
+	for(i = 0; i < players.length; i++){
+		if(players[i] == playerName){
+			return i;
+		}
 	}
 	return null;
 }
+
 function onDecrementPlayerSelection(){
 	//get the id of the selected player
 	if(network.mode == "none"){
@@ -93,15 +92,14 @@ function onDecrementPlayerSelection(){
 		return;
 	}
 	else{
-		id = selectedPlayer.id;
+		id = findPlayerID(selectedPlayer);
 	}
-
-	console.log("test");
 	id = id - 1;
 	if(id < 0)
 		id = 0;
 	
-	selectedPlayer = findPlayerByID(id);
+	selectedPlayer = players[id];
+	
 	updatePlayerSelectionText();
 
 	//refresh the selected tiles
@@ -119,7 +117,7 @@ function onDecrementPlayerSelection(){
 
 function updatePlayerSelectionText(){
 	//get the player name
-	name = selectedPlayer.name;
+	name = selectedPlayer;
 
 	//get the spinner
 	window = ui.getWindow("land_permissions");
@@ -133,14 +131,14 @@ function onIncrementPlayerSelection(){
 		return;
 	}
 	else{
-		id = selectedPlayer.id;
+		id = findPlayerID(selectedPlayer);
 	}
-	
 	id = id + 1;
 
-	if(id >= network.players.length)
-		id = network.players.length - 1;
-	selectedPlayer = findPlayerByID(id);
+	if(id >= players.length)
+		id = players.length - 1;
+
+	selectedPlayer = players[id];
 	updatePlayerSelectionText();
 
 	//refresh the selected tiles
@@ -157,12 +155,13 @@ function onIncrementPlayerSelection(){
 }
 
 function onToolUp(args){
-	context.executeAction("modify_land_restrictions", {player : selectedPlayer.id, playerOwnedTiles : mapCoordsOwned[selectedPlayer.id]});
+	index = findPlayerID(selectedPlayer);
+	context.executeAction("modify_land_restrictions", {player : index, playerOwnedTiles : mapCoordsOwned[index]});
 }
 function openLandPermissionWindow(){
 	
 	for(i = 0; i < network.numPlayers; i++){
-		addPlayer(network.getPlayer(i));
+		addPlayer(network.getPlayer(i).name);
 	}
 
 	landButton = {
@@ -240,7 +239,7 @@ function openLandPermissionWindow(){
 	//show tool
 	ui.activateTool(landPermissionToolDesc);
 	updateCursorSizeText();
-	selectedPlayer = network.currentPlayer;
+	selectedPlayer = findPlayerByName(network.currentPlayer.name);
 	updatePlayerSelectionText();
 }
 
@@ -293,7 +292,8 @@ function updateTool(args, player)
 	needRefresh = true;
 }
 function onLandPermissionToolDown(args){
-	updateTool(args, selectedPlayer.id);
+	index = findPlayerID(selectedPlayer);
+	updateTool(args, index);
 	lastCursorPosition = args.mapCoords;
 }
 
@@ -364,9 +364,10 @@ function onLandPermissionToolMove(args){
 
 	if(args.mapCoords.x != lastCursorPosition.x || args.mapCoords.y != lastCursorPosition.y)
 	{
-		updateCursorPosition(args, selectedPlayer.id);
+		index = findPlayerID(selectedPlayer);
+		updateCursorPosition(args, index);
 		if(args.isDown){
-			updateTool(args, selectedPlayer.id);
+			updateTool(args, index);
 		}
 	}
 	lastCursorPosition = args.mapCoords;
@@ -375,17 +376,11 @@ function onLandPermissionToolMove(args){
 function onPlayerJoin(args){
 	//add player
 	player = network.getPlayer(args.player);
-	addPlayer(player);
-	console.log("on player join players=" + players.length);
+	addPlayer(player.name);
 	for(i = 0; i < players.length; i++)
 	{
-		p = players[i];
-		console.log(p);
-		context.executeAction("modify_land_restrictions", {player : p.id, playerOwnedTiles : mapCoordsOwned[p.id]});
+		context.executeAction("modify_land_restrictions", {player : i, playerOwnedTiles : mapCoordsOwned[i]});
 	}
-
-	//put this player back online
-	isPlayerOnline[player.id] = true;
 }
 
 function onPlayerLeave(args){
@@ -420,20 +415,23 @@ function initOwnedMapCoords(player){
 	lastMapSize = map.size;
 }
 
-function addPlayer(player){
+function addPlayer(playerName){
 
 	//check if player exists
 	for(p = 0; p < players.length; p++){
-		if(players[p].name == player.name){
+		if(players[p] == playerName){
+			console.log("not adding player.name " + playerName);
 			return;
 		}
 	}
 
 	//add the player and initialize its coordinates
-	console.log("add player id #" + player.id);
-	players.push(player);
-	mapCoordsOwned[player.id] = [];
-	initOwnedMapCoords(player.id);
+	console.log("adding player.name " + playerName);
+	players.push(playerName);
+	index = findPlayerID(playerName);
+
+	mapCoordsOwned[index] = [];
+	initOwnedMapCoords(index);
 }
 
 lastMapSize = 0;
@@ -446,7 +444,15 @@ function onTick(){
 function onLandRestrictionsModify(args){
 	mapCoordsOwned[args.player] = args.playerOwnedTiles;
 	needRefresh = true;
-	console.log("modified land restrictions");
+	return {
+		error : 0,
+		errorTitle : "",
+		errorMessage : ""
+	};
+}
+
+function onPlayersModify(args){
+	players = args.players;
 	return {
 		error : 0,
 		errorTitle : "",
@@ -455,15 +461,15 @@ function onLandRestrictionsModify(args){
 }
 
 function onActionExecute(args){
-	console.log("onActionExecute args=" + args.args.name);
 	if(args.args.name == "request_land_restrictions"){
-		console.log("request land permissions");
 		for(i = 0; i < players.length; i++)
 		{
-			p = players[i];
-			console.log(p);
-			context.executeAction("modify_land_restrictions", {player : p.id, playerOwnedTiles : mapCoordsOwned[p.id]});
+			context.executeAction("modify_land_restrictions", {player : i, playerOwnedTiles : mapCoordsOwned[i]});
 		}
+	}
+	else if(args.args.name == "request_players"){
+		//add the players
+		context.executeAction("modify_players", {players : players});
 	}
 }
 function onLandRestrictionsRequest(args){
@@ -473,11 +479,27 @@ function onLandRestrictionsRequest(args){
 		errorMessage : ""
 	};
 }
+
+function onPlayersRequest(args){
+	return {
+		error : 0,
+		errorTitle : "",
+		errorMessage : ""
+	};
+}
+
+function findPlayerByName(name){
+	for(i = 0; i < players.length; i++){
+		if(players[i] == name)
+			return players[i];
+	}
+	return null;
+}
+
 function main() {
 	firstRun = true;
 	counter = 0;
 	context.subscribe("action.query",onQuery);
-	console.log("map initialized");
 	setToOwnedLand = true;
 	
 	//ui to permit land
@@ -487,35 +509,45 @@ function main() {
 
 	if(network.mode == "server" || network.mode == "none"){
 			//subscribe to player join and leave
-		context.subscribe("network.join", onPlayerJoin);
-		context.subscribe("network.leave", onPlayerLeave);
-		addPlayer(network.currentPlayer);
-		selectedPlayer = network.currentPlayer.id;
+		addPlayer(network.currentPlayer.name);
+		selectedPlayer = findPlayerByName(network.currentPlayer.name);
 		context.subscribe("action.execute", onActionExecute);
 	}
+	context.subscribe("network.join", onPlayerJoin);
+	context.subscribe("network.leave", onPlayerLeave);
 
 	context.subscribe("interval.tick", onTick);
-
-	//add other players
-	console.log(network.numPlayers);
-	for(i = 0; i < network.numPlayers; i++){
-		addPlayer(network.getPlayer(i));
-	}
-	console.log("added players");
 
 	//register custom game action for sending tiles on tool release
 	context.registerAction("modify_land_restrictions", 
 	function(args){return onLandRestrictionsModify(args);}, 
 	function(args){return onLandRestrictionsModify(args);});
 
+	//register custom game action for setting the players list
+	context.registerAction("modify_players", 
+	function(args){return onPlayersModify(args);}, 
+	function(args){return onPlayersModify(args);});
+
 	//register custom game action for getting tiles on game start
 	context.registerAction("request_land_restrictions", 
 	function(args){return onLandRestrictionsRequest(args);}, 
 	function(args){return onLandRestrictionsRequest(args);});
 
-	//request the tiles
+	//register custom game action for getting the players with land permissions
+	context.registerAction("request_players", 
+	function(args){return onPlayersRequest(args);}, 
+	function(args){return onPlayersRequest(args);});
+
+	//request the tiles and list of players
 	if(network.mode == "client"){
+		//request the list of players
+		context.executeAction("request_players", {name:"request_players"});
+
+		//request the tiles
 		context.executeAction("request_land_restrictions", {name:"request_land_restrictions"});
+
+		//get the selected player on client side
+		selectedPlayer = players[0];
 	}
 
 	return;
