@@ -2,6 +2,7 @@
 /// <reference path="C:\Users\lucas\OneDrive\Documents\openrct2-dev\OpenRCT2\distribution\openrct2.d.ts" />
 
 import GameCommandType from './defines'
+import {compressData, uncompressData} from './compression';
 
 ownedMapCoordsInit = false;
 mapCoordsOwned = [];
@@ -72,9 +73,6 @@ function updateCursorSizeText(){
 
 players = []
 selectedPlayer = {}
-/*function onPlayerDropDownChanged(index){
-	selectedPlayer = index;
-}*/
 
 function findPlayerID(playerName){
 	for(i = 0; i < players.length; i++){
@@ -156,7 +154,7 @@ function onIncrementPlayerSelection(){
 
 function onToolUp(args){
 	index = findPlayerID(selectedPlayer);
-	context.executeAction("modify_land_restrictions", {player : index, playerOwnedTiles : mapCoordsOwned[index]});
+	context.executeAction("modify_land_restrictions", {player : index, playerOwnedTiles : compressData(mapCoordsOwned[index])});
 }
 function openLandPermissionWindow(){
 	
@@ -379,7 +377,7 @@ function onPlayerJoin(args){
 	addPlayer(player.name);
 	for(i = 0; i < players.length; i++)
 	{
-		context.executeAction("modify_land_restrictions", {player : i, playerOwnedTiles : mapCoordsOwned[i]});
+		context.executeAction("modify_land_restrictions", {player : i, playerOwnedTiles : compressData(mapCoordsOwned[i])});
 	}
 }
 
@@ -442,7 +440,7 @@ function onTick(){
 }
 
 function onLandRestrictionsModify(args){
-	mapCoordsOwned[args.player] = args.playerOwnedTiles;
+	mapCoordsOwned[args.player] = uncompressData(args.playerOwnedTiles);
 	needRefresh = true;
 	return {
 		error : 0,
@@ -452,7 +450,9 @@ function onLandRestrictionsModify(args){
 }
 
 function onPlayersModify(args){
-	players = args.players;
+	for(i = 0; i < args.players.length; i++){
+		addPlayer(args.players[i]);
+	}
 	return {
 		error : 0,
 		errorTitle : "",
@@ -464,7 +464,7 @@ function onActionExecute(args){
 	if(args.args.name == "request_land_restrictions"){
 		for(i = 0; i < players.length; i++)
 		{
-			context.executeAction("modify_land_restrictions", {player : i, playerOwnedTiles : mapCoordsOwned[i]});
+			context.executeAction("modify_land_restrictions", {player : i, playerOwnedTiles : compressData(mapCoordsOwned[i])});
 		}
 	}
 	else if(args.args.name == "request_players"){
@@ -481,6 +481,7 @@ function onLandRestrictionsRequest(args){
 }
 
 function onPlayersRequest(args){
+	//initialize players maps
 	return {
 		error : 0,
 		errorTitle : "",
@@ -509,9 +510,9 @@ function main() {
 
 	if(network.mode == "server" || network.mode == "none"){
 			//subscribe to player join and leave
+		context.subscribe("action.execute", onActionExecute);
 		addPlayer(network.currentPlayer.name);
 		selectedPlayer = findPlayerByName(network.currentPlayer.name);
-		context.subscribe("action.execute", onActionExecute);
 	}
 	context.subscribe("network.join", onPlayerJoin);
 	context.subscribe("network.leave", onPlayerLeave);
@@ -549,6 +550,14 @@ function main() {
 		//get the selected player on client side
 		selectedPlayer = players[0];
 	}
+
+	//testing the compression algorithm
+	data = [false, false, false, false, true, true, false, false, false];
+	test = compressData(data);
+	console.log("compressed = " + test);
+
+	test2 = uncompressData(test);
+	console.log("uncompressed = " + test2);
 
 	return;
 }
