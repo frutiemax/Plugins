@@ -161,6 +161,7 @@ function openLandPermissionWindow(){
 	for(i = 0; i < network.numPlayers; i++){
 		addPlayer(network.getPlayer(i).name);
 	}
+	context.executeAction("request_land_restrictions", {name:"request_land_restrictions"});
 
 	landButton = {
 		type: "button",
@@ -462,6 +463,8 @@ function onPlayersModify(args){
 
 function onActionExecute(args){
 	if(args.args.name == "request_land_restrictions"){
+		console.log("onRequestLandPermissions");
+		console.log("players.length = " + players.length);
 		for(i = 0; i < players.length; i++)
 		{
 			context.executeAction("modify_land_restrictions", {player : i, playerOwnedTiles : compressData(mapCoordsOwned[i])});
@@ -521,22 +524,38 @@ function main() {
 
 	//register custom game action for sending tiles on tool release
 	context.registerAction("modify_land_restrictions", 
-	function(args){return onLandRestrictionsModify(args);}, 
+	function(args){return {
+		error : 0,
+		errorTitle : "",
+		errorMessage : ""
+	};}, 
 	function(args){return onLandRestrictionsModify(args);});
 
 	//register custom game action for setting the players list
 	context.registerAction("modify_players", 
-	function(args){return onPlayersModify(args);}, 
+	function(args){return {
+		error : 0,
+		errorTitle : "",
+		errorMessage : ""
+	};}, 
 	function(args){return onPlayersModify(args);});
 
 	//register custom game action for getting tiles on game start
 	context.registerAction("request_land_restrictions", 
-	function(args){return onLandRestrictionsRequest(args);}, 
+	function(args){return {
+		error : 0,
+		errorTitle : "",
+		errorMessage : ""
+	};}, 
 	function(args){return onLandRestrictionsRequest(args);});
 
 	//register custom game action for getting the players with land permissions
 	context.registerAction("request_players", 
-	function(args){return onPlayersRequest(args);}, 
+	function(args){return {
+		error : 0,
+		errorTitle : "",
+		errorMessage : ""
+	};}, 
 	function(args){return onPlayersRequest(args);});
 
 	//request the tiles and list of players
