@@ -1,6 +1,7 @@
 
 
 export function compressData(data){
+	console.log("before compression length = " + data.length);
 	compressed = []
 
 	count = 0;
@@ -19,11 +20,13 @@ export function compressData(data){
 		}
 	}
 	compressed.push(count);
+	console.log("after compression length = " + compressed.length);
 	return compressed;
 };
 
 export function uncompressData(data){
 	uncompressed = []
+	console.log("before decompression length = " + data.length);
 
 	//get the first token
 	token = data[0]
@@ -38,5 +41,6 @@ export function uncompressData(data){
 
 		token = !token;
 	}
+	console.log("after decompression length = " + uncompressed.length);
 	return uncompressed;
 };

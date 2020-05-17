@@ -153,15 +153,26 @@ function onIncrementPlayerSelection(){
 }
 
 function onToolUp(args){
-	index = findPlayerID(selectedPlayer);
-	context.executeAction("modify_land_restrictions", {player : index, playerOwnedTiles : compressData(mapCoordsOwned[index])});
+	z = findPlayerID(selectedPlayer);
+	compressedData = compressData(mapCoordsOwned[z]);
+	context.executeAction("modify_land_restrictions", {player : z, playerOwnedTiles : compressedData});
+}
+
+function getNumOwnedTiles(player){
+	count = 0;
+	for(i = 0; i < mapCoordsOwned[player].length; i++){
+		if(mapCoordsOwned[player][i])
+			count++;
+	}
+	return count;
 }
 function openLandPermissionWindow(){
 	
-	for(i = 0; i < network.numPlayers; i++){
-		addPlayer(network.getPlayer(i).name);
+
+	for(v = 0; v < players.length; v++){
+		numOwnedTiles = getNumOwnedTiles(v);
+		console.log("player #" + v + " owned tiles = " + numOwnedTiles);
 	}
-	context.executeAction("request_land_restrictions", {name:"request_land_restrictions"});
 
 	landButton = {
 		type: "button",
@@ -376,9 +387,10 @@ function onPlayerJoin(args){
 	//add player
 	player = network.getPlayer(args.player);
 	addPlayer(player.name);
-	for(i = 0; i < players.length; i++)
+	for(z = 0; z < players.length; z++)
 	{
-		context.executeAction("modify_land_restrictions", {player : i, playerOwnedTiles : compressData(mapCoordsOwned[i])});
+		compressedData = compressData(mapCoordsOwned[z]);
+		context.executeAction("modify_land_restrictions", {player : z, playerOwnedTiles : compressedData});
 	}
 }
 
@@ -451,9 +463,10 @@ function onLandRestrictionsModify(args){
 }
 
 function onPlayersModify(args){
-	for(i = 0; i < args.players.length; i++){
+	/*for(i = 0; i < args.players.length; i++){
 		addPlayer(args.players[i]);
-	}
+	}*/
+	players = args.players;
 	return {
 		error : 0,
 		errorTitle : "",
@@ -465,9 +478,11 @@ function onActionExecute(args){
 	if(args.args.name == "request_land_restrictions"){
 		console.log("onRequestLandPermissions");
 		console.log("players.length = " + players.length);
-		for(i = 0; i < players.length; i++)
+		for(z = 0; z < players.length; z++)
 		{
-			context.executeAction("modify_land_restrictions", {player : i, playerOwnedTiles : compressData(mapCoordsOwned[i])});
+			compressedData = compressData(mapCoordsOwned[z]);
+			console.log(compressedData);
+			context.executeAction("modify_land_restrictions", {player : z, playerOwnedTiles : compressedData});
 		}
 	}
 	else if(args.args.name == "request_players"){
@@ -476,6 +491,7 @@ function onActionExecute(args){
 	}
 }
 function onLandRestrictionsRequest(args){
+	console.log("onLandRestrictionsRequest");
 	return {
 		error : 0,
 		errorTitle : "",
