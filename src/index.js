@@ -601,7 +601,8 @@ registerPlugin({
     name: 'PlayerTerritory',
     version: '1.0',
     authors: ['Frutiemax'],
-    type: 'remote',
+	type: 'remote',
+	license: 'MIT',
     main: main
 });
 
